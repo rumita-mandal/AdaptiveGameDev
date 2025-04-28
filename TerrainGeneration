@@ -1,0 +1,137 @@
+!pip install ipywidgets transformers torch matplotlib --quiet
+from google.colab import output
+output.enable_custom_widget_manager()
+
+import numpy as np
+import matplotlib.pyplot as plt
+import ipywidgets as widgets
+from IPython.display import display, clear_output
+from transformers import pipeline
+import random
+
+analyzer = pipeline("sentiment-analysis")
+
+world_size = 10
+terrain_map = np.random.randint(0, 10, (world_size, world_size))
+player_pos = [0, 0]
+player_icon = "🧙"
+player_health = 100
+log = []
+
+treasures = [(random.randint(1, 9), random.randint(1, 9)) for _ in range(5)]
+enemies = [(random.randint(1, 9), random.randint(1, 9)) for _ in range(3)]
+npcs = {
+    (3, 3): "Welcome to the sacred temple...",
+    (7, 6): "Do you seek wisdom or power?",
+    (2, 8): "Not all treasure glitters."
+}
+
+colors = ["#a2d5c6", "#077b8a", "#5c3c92", "#ffcb77", "#f8f3d4", "#ff6f61", "#a1c349", "#88d8b0", "#ffe156", "#8e7dbe"]
+
+characters = {
+    "Warrior ⚔️": "🛡️",
+    "Mage 🔮": "🧙",
+    "Ninja 🥷": "🥷",
+    "Robot 🤖": "🤖",
+    "Alien 👽": "👽"
+}
+
+def draw_map():
+    clear_output(wait=True)
+    fig, ax = plt.subplots(figsize=(6, 6))
+    for i in range(world_size):
+        for j in range(world_size):
+            rect = plt.Rectangle((j, world_size - 1 - i), 1, 1, facecolor=colors[terrain_map[i, j]], edgecolor='white')
+            ax.add_patch(rect)
+
+    for tx, ty in treasures:
+        ax.text(ty + 0.5, world_size - 1 - tx + 0.5, "💰", ha='center', va='center', fontsize=12)
+    for ex, ey in enemies:
+        ax.text(ey + 0.5, world_size - 1 - ex + 0.5, "💀", ha='center', va='center', fontsize=12)
+
+    x, y = player_pos
+    ax.text(y + 0.5, world_size - 1 - x + 0.5, player_icon, ha='center', va='center', fontsize=18)
+
+    ax.set_xlim(0, world_size)
+    ax.set_ylim(0, world_size)
+    ax.axis('off')
+    plt.title(f"❤️ Health: {player_health}", fontsize=14)
+    plt.show()
+
+    display(widgets.HBox([left_btn, up_btn, down_btn, right_btn]))
+    show_log()
+
+def move(dx, dy):
+    global player_health
+    new_x = player_pos[0] + dx
+    new_y = player_pos[1] + dy
+    if 0 <= new_x < world_size and 0 <= new_y < world_size:
+        player_pos[0] = new_x
+        player_pos[1] = new_y
+
+    pos = tuple(player_pos)
+
+    if pos in treasures:
+        treasures.remove(pos)
+        log.append("💎 You found treasure!")
+    elif pos in enemies:
+        enemies.remove(pos)
+        player_health -= 20
+        log.append("💥 You fought an enemy! -20 HP")
+    elif pos in npcs:
+        msg = npcs[pos]
+        log.append(f"🧙 NPC: {msg}")
+        ask_npc()
+    else:
+        log.append(f"➡️ Moved to {pos}")
+
+    draw_map()
+
+def ask_npc():
+    user_input = input("🗨️ Say something to the NPC: ")
+    result = analyzer(user_input)[0]
+    mood = result['label']
+    if mood == "POSITIVE":
+        log.append("😊 NPC: You're brave and kind.")
+    elif mood == "NEGATIVE":
+        log.append("😠 NPC: You shouldn't speak like that.")
+    else:
+        log.append("😐 NPC: I sense uncertainty in you.")
+
+def show_log():
+    print("📜 Last actions:")
+    for entry in log[-5:]:
+        print(entry)
+
+def start_game(b):
+    global player_icon, player_pos, player_health, log
+    player_icon = characters[char_dropdown.value]
+    player_pos = [0, 0]
+    player_health = 100
+    log = [f"✨ You entered the world as {char_dropdown.value}"]
+    draw_map()
+
+up_btn = widgets.Button(description="⬆️", layout=widgets.Layout(width='60px'))
+down_btn = widgets.Button(description="⬇️", layout=widgets.Layout(width='60px'))
+left_btn = widgets.Button(description="⬅️", layout=widgets.Layout(width='60px'))
+right_btn = widgets.Button(description="➡️", layout=widgets.Layout(width='60px'))
+
+up_btn.on_click(lambda _: move(-1, 0))
+down_btn.on_click(lambda _: move(1, 0))
+left_btn.on_click(lambda _: move(0, -1))
+right_btn.on_click(lambda _: move(0, 1))
+
+char_dropdown = widgets.Dropdown(
+    options=list(characters.keys()),
+    description="Choose Character:",
+    style={'description_width': 'initial'}
+)
+
+start_btn = widgets.Button(description="Start Game", button_style='success')
+start_btn.on_click(start_game)
+
+display(widgets.VBox([
+    widgets.HTML("<h3>🎮 Choose your character and enter the world</h3>"),
+    char_dropdown,
+    start_btn
+]))
